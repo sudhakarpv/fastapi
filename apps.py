@@ -1,5 +1,5 @@
 from typing import List
-from datetime import datetime
+from datetime import datetime, date
 import databases
 import sqlalchemy
 from fastapi import FastAPI
@@ -20,6 +20,7 @@ jobs = sqlalchemy.Table(
     sqlalchemy.Column("description", sqlalchemy.String),
     sqlalchemy.Column("applied", sqlalchemy.Boolean),
     sqlalchemy.Column("experience", sqlalchemy.Integer),
+    sqlalchemy.Column("lastdate", sqlalchemy.Integer),
     sqlalchemy.Column("created", sqlalchemy.DateTime),
 )
 
@@ -34,6 +35,7 @@ class Jobs(BaseModel):
     title: str
     description: str
     experience: int
+    lastdate: Optional[date]
     applied: Optional[bool]
     created: Optional[datetime]
 
@@ -59,21 +61,32 @@ async def list_jobs():
 
 @app.post("/jobs/", response_model=Jobs)
 async def create_job(job: Jobs):
-    query = jobs.insert().values(title=job.title, description=job.description, applied=False, created=datetime.now())
+    query = jobs.insert().values(title=job.title, description=job.description, applied=False, experience=job.experience,
+                                 lastdate=job.lastdate, created=datetime.now())
     last_record_id = await database.execute(query)
-    return {**job.dict(), "id": last_record_id, "message": "Job Added Successfully"}
-
-
-@app.put("/jobs/{job_id}/", response_model=Jobs)
-async def update_job(job_id: int, payload: Jobs):
-    query = jobs.update().where(jobs.c.id == job_id).values(title=payload.title, description=payload.description,
-                                                            applied=False)
-    await database.execute(query)
-    return {**payload.dict(), "id": job_id, "message": "Updated Successfully"}
+    return {**job.dict(), "id": last_record_id}
 
 
 @app.delete("/jobs/{job_id}/")
 async def delete_job(job_id: int):
     query = jobs.delete().where(jobs.c.id == job_id)
     await database.execute(query)
-    return {"message": "Deleted successfully!".format(job_id)}
+    return {"message": "Deleted successfully!"}
+
+
+@app.put("/job/{job_id}/", response_model=Jobs)
+async def update_job(job_id: int, payload: Jobs):
+    query = jobs.update().where(jobs.c.id == job_id).values(title=payload.title, description=payload.description,
+                                                            experience=payload.experience, lastdate=payload.lastdate,
+                                                            applied=False)
+    await database.execute(query)
+    return {**payload.dict(), "id": job_id}
+
+
+@app.put("/job/{job_id}/apply", response_model=Jobs)
+async def apply_job(job_id: int, payload: Jobs):
+    query = jobs.update().where(jobs.c.id == job_id).values(title=payload.title, description=payload.description,
+                                                            experience=payload.experience, lastdate=payload.lastdate,
+                                                            applied=True)
+    await database.execute(query)
+    return {**payload.dict(), "id": job_id}
